@@ -1,0 +1,2 @@
+# sc-things
+SuperCollider Things
