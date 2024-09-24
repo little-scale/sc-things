@@ -32,67 +32,57 @@ s.options.memSize = 8192 * 32;
 (
 // Formant synth
 SynthDef.new(\vow, {
-	arg voce = 0, vow = 0, amp = 0.5, rq = 0.1, lag_time = 0.1, freq = 50, dur, gate = 1, noi = 0.5, res_scale = 5, lfo_depth = 0.1, lfo_rate = 5, pan = 0, fadein = 10;
-	var snd, env, formants = 5, lfo;
+	arg voce = 0, vow = 0, amp = 0.5, rq = 0.1, lag_time = 0.1, freq = 50, dur, gate = 1, noi = 0.5, res_scale = 5, lfo_depth = 0.1,
+	lfo_rate = 2.5, pan = 0, fadein = 3, dry = 0.0, wet = 1.0;
+	var snd, env, formants = 5, lfo, verb;
 
 	~formant_freq = Array2D.fromArray(5, 5, Select.kr(voce, ~freqs));
 	~formant_amp = Array2D.fromArray(5, 5, Select.kr(voce, ~amps));
 	~formant_bw = Array2D.fromArray(5, 5, Select.kr(voce, ~bws));
 
-	lfo = SinOsc.ar(Rand(0, lfo_rate), 0, Rand(lfo_depth/2, lfo_depth));
+	lfo = SinOsc.ar(Rand(0.01, lfo_rate), 0, Rand(lfo_depth / 2, lfo_depth)) *  SinOsc.ar(Rand(0.01, 0.5), Rand(0, 2pi));
 	freq = (freq.cpsmidi + lfo).midicps;
 	snd = Impulse.ar(freq) + PinkNoise.ar(noi * amp);
 	snd = LPF.ar(snd, 5000);
 	snd = HPF.ar(snd, 110);
 
-	snd= Array.fill(5, {
+	snd= Mix.fill(5, {
 		arg index;
 		var form_freq, form_bw, form_amp;
 
 		form_freq = Lag.kr(Select.kr(vow, ~formant_freq.colAt(index)), lag_time);
-		form_bw = Select.kr(vow, ~formant_bw.colAt(index)).reciprocal;
-		form_amp = Select.kr(vow, ~formant_amp.colAt(index));
+		form_bw = Lag.kr(Select.kr(vow, ~formant_bw.colAt(index)).reciprocal, lag_time);
+		form_amp = Lag.kr(Select.kr(vow, ~formant_amp.colAt(index)), lag_time);
 		Formlet.ar(snd, form_freq, 0.001, res_scale * form_bw, form_amp) * 5 * amp;
 	});
 
-	snd = Mix.ar(snd);
 	env = EnvGen.ar(Env.adsr(sustainLevel: 0.5, curve: -10), gate, doneAction: 2);
 	snd = snd * env * amp;
-	// Reverb and extra filter! Can remove
-	snd = snd + Resonz.ar(snd, freq * Lag.kr(TRand.kr(5, 12, Impulse.kr(1/dur)), lag_time), 0.05, 10);
-	snd = MiVerb.ar(snd, 0.9);
 
-	// Fade in! Can remove
+	snd = snd + Resonz.ar(snd, freq * Lag.kr(TRand.kr(2, 7, Impulse.kr(1/dur)), lag_time), 0.1, 5);
+
+	snd = MiVerb.ar(snd, 0.9, 0.5);
+
+	snd = RLPF.ar(snd, SinOsc.ar(Rand(0.05, 0.1)).range(6000, 15000), 1);
+
+	snd = snd * LFTri.ar(Rand(0.01, 0.1), Rand(0.0, 4.0), 0.5, 0.5);
+
 	snd = snd * Line.kr(0, 1, fadein);
+
 	snd = Pan2.ar(snd, pan);
 
 	Out.ar(0, snd);
 }).add;
 )
 
-(
-
-// Formant playback
-Pmono(
-	\vow,
-	\voce, 0, // 0 = soprano, 1 = alto, 2 = countertenor, 3 = tenor, 4 = bass
-	\freq, 440,
-	\vow, Pn(Pseries(0, 1, 5)), // 0 = a, 1 = e, 2 = i, 3 = o, 4 = u
-	\dur, 1,
-	\lag_time, 0.1,
-	\pan, 0,
-	\amp, 0.1
-).play
-)
-
 // Multiple voices
 (
 Pmono(
 	\vow,
-	\voce, 4, // 0 = soprano, 1 = alto, 2 = countertenor, 3 = tenor, 4 = bass
-	\freq, [40, 80, 40] * Pwhite(0.99, 1.01) * 1,
+	\voce, [3, 2, 1, 4, 4, 4],
+	\freq, [200, 186, 126] * Pwhite(0.99, 1.01) ++ ([200, 186, 126] * Pwhite(0.99, 1.01) / 2),
 	\vow, Pwhite([0!3, 4]),
-	\dur, 5,
+	\dur, 10,
 	\lag_time, 5,
 	\pan, [-1, 0, 1],
 	\amp, 0.15
